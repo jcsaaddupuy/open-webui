@@ -168,7 +168,7 @@ class S3StorageProvider(StorageProvider):
     def delete_all_files(self) -> None:
         """Handles deletion of all files from S3 storage."""
         try:
-            response = self.s3_client.list_objects_v2(Bucket=self.bucket_name)
+            response = self.s3_client.list_objects_v2(Bucket=self.bucket_name, Prefix=self.key_prefix)
             if "Contents" in response:
                 for content in response["Contents"]:
                     # Skip objects that were not uploaded from open-webui in the first place
