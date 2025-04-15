@@ -97,20 +97,30 @@ class TestLocalStorageProvider:
         assert not (upload_dir / self.filename_extra).exists()
 
 
+
+
+@pytest.fixture
+def s3_storage():
+    storage = provider.S3StorageProvider()
+    storage.bucket_name = "my-bucket"
+    yield storage
+
+
+@pytest.fixture
+def s3_client():
+    yield boto3.resource("s3", region_name="us-east-1")
+
+
 @mock_aws
 class TestS3StorageProvider:
+    
+    file_content = b"test content"
+    filename = "test.txt"
+    filename_extra = "test_exyta.txt"
+    file_bytesio_empty = io.BytesIO()
+    
+    def test_upload_file(self, monkeypatch, tmp_path, s3_client, s3_storage):
 
-    def __init__(self):
-        self.Storage = provider.S3StorageProvider()
-        self.Storage.bucket_name = "my-bucket"
-        self.s3_client = boto3.resource("s3", region_name="us-east-1")
-        self.file_content = b"test content"
-        self.filename = "test.txt"
-        self.filename_extra = "test_exyta.txt"
-        self.file_bytesio_empty = io.BytesIO()
-        super().__init__()
-
-    def test_upload_file(self, monkeypatch, tmp_path):
         upload_dir = mock_upload_dir(monkeypatch, tmp_path)
         # S3 checks
         with pytest.raises(Exception):
@@ -157,33 +167,34 @@ class TestS3StorageProvider:
     def test_delete_all_files(self, monkeypatch, tmp_path):
         upload_dir = mock_upload_dir(monkeypatch, tmp_path)
         # create 2 files
-        self.s3_client.create_bucket(Bucket=self.Storage.bucket_name)
-        self.Storage.upload_file(io.BytesIO(self.file_content), self.filename)
-        object = self.s3_client.Object(self.Storage.bucket_name, self.filename)
+        s3_client.create_bucket(Bucket=s3_storage.bucket_name)
+        s3_storage.upload_file(io.BytesIO(self.file_content), self.filename)
+        object = s3_client.Object(s3_storage.bucket_name, self.filename)
         assert self.file_content == object.get()["Body"].read()
         assert (upload_dir / self.filename).exists()
         assert (upload_dir / self.filename).read_bytes() == self.file_content
-        self.Storage.upload_file(io.BytesIO(self.file_content), self.filename_extra)
-        object = self.s3_client.Object(self.Storage.bucket_name, self.filename_extra)
+        
+        s3_storage.upload_file(io.BytesIO(self.file_content), self.filename_extra)
+        object = s3_client.Object(s3_storage.bucket_name, self.filename_extra)
         assert self.file_content == object.get()["Body"].read()
         assert (upload_dir / self.filename).exists()
         assert (upload_dir / self.filename).read_bytes() == self.file_content
 
-        self.Storage.delete_all_files()
+        s3_storage.delete_all_files()
         assert not (upload_dir / self.filename).exists()
         with pytest.raises(ClientError) as exc:
-            self.s3_client.Object(self.Storage.bucket_name, self.filename).load()
+            s3_client.Object(s3_storage.bucket_name, self.filename).load()
         error = exc.value.response["Error"]
         assert error["Code"] == "404"
         assert error["Message"] == "Not Found"
         assert not (upload_dir / self.filename_extra).exists()
         with pytest.raises(ClientError) as exc:
-            self.s3_client.Object(self.Storage.bucket_name, self.filename_extra).load()
+            s3_client.Object(s3_storage.bucket_name, self.filename_extra).load()
         error = exc.value.response["Error"]
         assert error["Code"] == "404"
         assert error["Message"] == "Not Found"
 
-        self.Storage.delete_all_files()
+        s3_storage.delete_all_files()
         assert not (upload_dir / self.filename).exists()
         assert not (upload_dir / self.filename_extra).exists()
 
