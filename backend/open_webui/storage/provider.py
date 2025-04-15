@@ -171,10 +171,6 @@ class S3StorageProvider(StorageProvider):
             response = self.s3_client.list_objects_v2(Bucket=self.bucket_name, Prefix=self.key_prefix)
             if "Contents" in response:
                 for content in response["Contents"]:
-                    # Skip objects that were not uploaded from open-webui in the first place
-                    if not content["Key"].startswith(self.key_prefix):
-                        continue
-
                     self.s3_client.delete_object(
                         Bucket=self.bucket_name, Key=content["Key"]
                     )
